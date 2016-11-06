@@ -106,7 +106,7 @@ bool WiFiManager::addParameter(WiFiManagerParameter *p) {
 
 void WiFiManager::setupConfigPortal() {
   dnsServer.reset(new DNSServer());
-  server.reset(new ESP8266WebServer(80));
+  server.reset(new WifiManagerWebServerType(80));
 
   DEBUG_WM(F(""));
   _configPortalStart = millis();
@@ -143,6 +143,7 @@ void WiFiManager::setupConfigPortal() {
   dnsServer->start(DNS_PORT, "*", WiFi.softAPIP());
 
   /* Setup web pages: root, wifi config pages, SO captive portal detectors and not found. */
+#ifdef WIFI_MANAGER_USE_ASYNC_WEB_SERVER
   server->on(String(F("/")).c_str(), std::bind(&WiFiManager::handleRoot, this));
   server->on(String(F("/wifi")).c_str(), std::bind(&WiFiManager::handleWifi, this, true));
   server->on(String(F("/0wifi")).c_str(), std::bind(&WiFiManager::handleWifi, this, false));
@@ -152,6 +153,17 @@ void WiFiManager::setupConfigPortal() {
   //server->on("/generate_204", std::bind(&WiFiManager::handle204, this));  //Android/Chrome OS captive portal check.
   server->on(String(F("/fwlink")).c_str(), std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
   server->onNotFound (std::bind(&WiFiManager::handleNotFound, this));
+#else
+  server->on("/", std::bind(&WiFiManager::handleRoot, this, server.get()));
+  server->on("/wifi", std::bind(&WiFiManager::handleWifi, this, server.get(), true));
+  server->on("/0wifi", std::bind(&WiFiManager::handleWifi, this, server.get(), false));
+  server->on("/wifisave", std::bind(&WiFiManager::handleWifiSave, this, server.get()));
+  server->on("/i", std::bind(&WiFiManager::handleInfo, this, server.get()));
+  server->on("/r", std::bind(&WiFiManager::handleReset, this, server.get()));
+  //server->on("/generate_204", std::bind(&WiFiManager::handle204, this, server.get()));  //Android/Chrome OS captive portal check.
+  server->on("/fwlink", std::bind(&WiFiManager::handleRoot, this, server.get()));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
+  server->onNotFound (std::bind(&WiFiManager::handleNotFound, this, server.get()));
+#endif
   server->begin(); // Web server start
   DEBUG_WM(F("HTTP server started"));
 }
@@ -444,16 +456,16 @@ void WiFiManager::setBreakAfterConfig(boolean shouldBreak) {
 }
 
 /** Handle root or redirect to captive portal */
-void WiFiManager::handleRoot() {
+void WiFiManager::handleRoot(WifiManagerWebServerRequestType *request) {
   DEBUG_WM(F("Handle root"));
-  if (captivePortal()) { // If caprive portal redirect instead of displaying the page.
+  if (captivePortal(request)) { // If captive portal redirect instead of displaying the page.
     return;
   }
 
   String page = FPSTR(HTTP_HEADER);
   page.replace("{v}", "Options");
-  page += FPSTR(HTTP_SCRIPT);
-  page += FPSTR(HTTP_STYLE);
+  page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
+  page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
   page += FPSTR(HTTP_HEADER_END);
   page += String(F("<h1>"));
@@ -466,15 +478,16 @@ void WiFiManager::handleRoot() {
   server->sendHeader("Content-Length", String(page.length()));
   server->send(200, "text/html", page);
 
+  request->send(200, "text/html", page);
 }
 
 /** Wifi config page handler */
-void WiFiManager::handleWifi(boolean scan) {
+void WiFiManager::handleWifi(WifiManagerWebServerRequestType *request, boolean scan) {
 
   String page = FPSTR(HTTP_HEADER);
   page.replace("{v}", "Config ESP");
-  page += FPSTR(HTTP_SCRIPT);
-  page += FPSTR(HTTP_STYLE);
+  page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
+  page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
   page += FPSTR(HTTP_HEADER_END);
 
@@ -531,7 +544,7 @@ void WiFiManager::handleWifi(boolean scan) {
         int quality = getRSSIasQuality(WiFi.RSSI(indices[i]));
 
         if (_minimumQuality == -1 || _minimumQuality < quality) {
-          String item = FPSTR(HTTP_ITEM);
+          String item = FPSTR(WIFI_MANAGER_HTTP_ITEM);
           String rssiQ;
           rssiQ += quality;
           item.replace("{v}", WiFi.SSID(indices[i]));
@@ -561,7 +574,7 @@ void WiFiManager::handleWifi(boolean scan) {
       break;
     }
 
-    String pitem = FPSTR(HTTP_FORM_PARAM);
+    String pitem = FPSTR(WIFI_MANAGER_HTTP_FORM_PARAM);
     if (_params[i]->getID() != NULL) {
       pitem.replace("{i}", _params[i]->getID());
       pitem.replace("{n}", _params[i]->getID());
@@ -582,7 +595,7 @@ void WiFiManager::handleWifi(boolean scan) {
 
   if (_sta_static_ip) {
 
-    String item = FPSTR(HTTP_FORM_PARAM);
+    String item = FPSTR(WIFI_MANAGER_HTTP_FORM_PARAM);
     item.replace("{i}", "ip");
     item.replace("{n}", "ip");
     item.replace("{p}", "Static IP");
@@ -591,7 +604,7 @@ void WiFiManager::handleWifi(boolean scan) {
 
     page += item;
 
-    item = FPSTR(HTTP_FORM_PARAM);
+    item = FPSTR(WIFI_MANAGER_HTTP_FORM_PARAM);
     item.replace("{i}", "gw");
     item.replace("{n}", "gw");
     item.replace("{p}", "Static Gateway");
@@ -600,7 +613,7 @@ void WiFiManager::handleWifi(boolean scan) {
 
     page += item;
 
-    item = FPSTR(HTTP_FORM_PARAM);
+    item = FPSTR(WIFI_MANAGER_HTTP_FORM_PARAM);
     item.replace("{i}", "sn");
     item.replace("{n}", "sn");
     item.replace("{p}", "Subnet");
@@ -612,25 +625,23 @@ void WiFiManager::handleWifi(boolean scan) {
     page += "<br/>";
   }
 
-  page += FPSTR(HTTP_FORM_END);
-  page += FPSTR(HTTP_SCAN_LINK);
+  page += FPSTR(WIFI_MANAGER_HTTP_FORM_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_SCAN_LINK);
+  page += FPSTR(WIFI_MANAGER_HTTP_END);
 
-  page += FPSTR(HTTP_END);
 
-  server->sendHeader("Content-Length", String(page.length()));
-  server->send(200, "text/html", page);
-
+  request->send(200, "text/html", page);
 
   DEBUG_WM(F("Sent config page"));
 }
 
 /** Handle the WLAN save form and redirect to WLAN config page again */
-void WiFiManager::handleWifiSave() {
+void WiFiManager::handleWifiSave(WifiManagerWebServerRequestType *request) {
   DEBUG_WM(F("WiFi save"));
 
   //SAVE/connect here
-  _ssid = server->arg("s").c_str();
-  _pass = server->arg("p").c_str();
+  _ssid = request->arg("s").c_str();
+  _pass = request->arg("p").c_str();
 
   //parameters
   for (int i = 0; i < _paramsCount; i++) {
@@ -638,7 +649,7 @@ void WiFiManager::handleWifiSave() {
       break;
     }
     //read parameter
-    String value = server->arg(_params[i]->getID()).c_str();
+    String value = request->arg(_params[i]->getID()).c_str();
     //store it in array
     value.toCharArray(_params[i]->_value, _params[i]->_length + 1);
     DEBUG_WM(F("Parameter"));
@@ -646,30 +657,30 @@ void WiFiManager::handleWifiSave() {
     DEBUG_WM(value);
   }
 
-  if (server->arg("ip") != "") {
+  if (request->arg("ip") != "") {
     DEBUG_WM(F("static ip"));
-    DEBUG_WM(server->arg("ip"));
-    //_sta_static_ip.fromString(server->arg("ip"));
-    String ip = server->arg("ip");
+    DEBUG_WM(request->arg("ip"));
+    //_sta_static_ip.fromString(request->arg("ip"));
+    String ip = request->arg("ip");
     optionalIPFromString(&_sta_static_ip, ip.c_str());
   }
-  if (server->arg("gw") != "") {
+  if (request->arg("gw") != "") {
     DEBUG_WM(F("static gateway"));
-    DEBUG_WM(server->arg("gw"));
-    String gw = server->arg("gw");
+    DEBUG_WM(request->arg("gw"));
+    String gw = request->arg("gw");
     optionalIPFromString(&_sta_static_gw, gw.c_str());
   }
-  if (server->arg("sn") != "") {
+  if (request->arg("sn") != "") {
     DEBUG_WM(F("static netmask"));
-    DEBUG_WM(server->arg("sn"));
-    String sn = server->arg("sn");
+    DEBUG_WM(request->arg("sn"));
+    String sn = request->arg("sn");
     optionalIPFromString(&_sta_static_sn, sn.c_str());
   }
 
   String page = FPSTR(HTTP_HEADER);
   page.replace("{v}", "Credentials Saved");
-  page += FPSTR(HTTP_SCRIPT);
-  page += FPSTR(HTTP_STYLE);
+  page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
+  page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
   page += FPSTR(HTTP_HEADER_END);
   page += FPSTR(HTTP_SAVED);
@@ -684,13 +695,13 @@ void WiFiManager::handleWifiSave() {
 }
 
 /** Handle the info page */
-void WiFiManager::handleInfo() {
+void WiFiManager::handleInfo(WifiManagerWebServerRequestType *request) {
   DEBUG_WM(F("Info"));
 
   String page = FPSTR(HTTP_HEADER);
   page.replace("{v}", "Info");
-  page += FPSTR(HTTP_SCRIPT);
-  page += FPSTR(HTTP_STYLE);
+  page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
+  page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
   page += FPSTR(HTTP_HEADER_END);
   page += F("<dl>");
@@ -716,7 +727,7 @@ void WiFiManager::handleInfo() {
   page += WiFi.macAddress();
   page += F("</dd>");
   page += F("</dl>");
-  page += FPSTR(HTTP_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_END);
 
   server->sendHeader("Content-Length", String(page.length()));
   server->send(200, "text/html", page);
@@ -725,13 +736,13 @@ void WiFiManager::handleInfo() {
 }
 
 /** Handle the reset page */
-void WiFiManager::handleReset() {
+void WiFiManager::handleReset(WifiManagerWebServerRequestType *request) {
   DEBUG_WM(F("Reset"));
 
   String page = FPSTR(HTTP_HEADER);
   page.replace("{v}", "Info");
-  page += FPSTR(HTTP_SCRIPT);
-  page += FPSTR(HTTP_STYLE);
+  page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
+  page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
   page += FPSTR(HTTP_HEADER_END);
   page += F("Module will reset in a few seconds.");
@@ -746,39 +757,65 @@ void WiFiManager::handleReset() {
   delay(2000);
 }
 
-void WiFiManager::handleNotFound() {
-  if (captivePortal()) { // If captive portal redirect instead of displaying the error page.
+
+void WiFiManager::handleNotFound(WifiManagerWebServerRequestType *request) {
+  if (captivePortal(request)) { // If captive portal redirect instead of displaying the error page.
     return;
   }
+
   String message = "File Not Found\n\n";
   message += "URI: ";
-  message += server->uri();
+#ifdef WIFI_MANAGER_USE_ASYNC_WEB_SERVER
+  message += request->url();
+#else
+  message += request->uri();
+#endif
   message += "\nMethod: ";
-  message += ( server->method() == HTTP_GET ) ? "GET" : "POST";
+  message += ( request->method() == HTTP_GET ) ? "GET" : "POST";
   message += "\nArguments: ";
-  message += server->args();
+  message += request->args();
   message += "\n";
 
-  for ( uint8_t i = 0; i < server->args(); i++ ) {
-    message += " " + server->argName ( i ) + ": " + server->arg ( i ) + "\n";
+  for ( uint8_t i = 0; i < request->args(); i++ ) {
+    message += " " + request->argName ( i ) + ": " + request->arg ( i ) + "\n";
   }
-  server->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  server->sendHeader("Pragma", "no-cache");
-  server->sendHeader("Expires", "-1");
-  server->sendHeader("Content-Length", String(message.length()));
-  server->send ( 404, "text/plain", message );
+#ifdef WIFI_MANAGER_USE_ASYNC_WEB_SERVER
+  AsyncWebServerResponse *response = request->beginResponse( 404, "text/plain", message );
+  response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  response->addHeader("Pragma", "no-cache");
+  response->addHeader("Expires", "-1");
+  response->sendHeader("Content-Length", String(message.length()));
+  request->send(response);
+#else
+  request->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  request->sendHeader("Pragma", "no-cache");
+  request->sendHeader("Expires", "-1");
+  request->sendHeader("Content-Length", String(message.length()));
+  request->send ( 404, "text/plain", message );
+#endif
 }
 
 
 /** Redirect to captive portal if we got a request for another domain. Return true in that case so the page handler do not try to handle the request again. */
-boolean WiFiManager::captivePortal() {
-  if (!isIp(server->hostHeader()) ) {
+boolean WiFiManager::captivePortal(WifiManagerWebServerRequestType *request) {
+#ifdef WIFI_MANAGER_USE_ASYNC_WEB_SERVER
+  if (!isIp(request->host()) ) {
     DEBUG_WM(F("Request redirected to captive portal"));
-    server->sendHeader("Location", String("http://") + toStringIp(server->client().localIP()), true);
-    server->send ( 302, "text/plain", ""); // Empty content inhibits Content-length header so we have to close the socket ourselves.
-    server->client().stop(); // Stop is needed because we sent no content length
+    AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", "");
+    response->addHeader("Location", String("http://") + toStringIp(request->client().localIP()));
+    request->send(response);
+    request->client().stop(); // Stop is needed because we sent no content length
     return true;
   }
+#else
+  if (!isIp(request->hostHeader()) ) {
+    DEBUG_WM(F("Request redirected to captive portal"));
+    request->sendHeader("Location", String("http://") + toStringIp(request->client().localIP()), true);
+    request->send ( 302, "text/plain", ""); // Empty content inhibits Content-length header so we have to close the socket ourselves.
+    request->client().stop(); // Stop is needed because we sent no content length
+    return true;
+  }
+#endif
   return false;
 }
 

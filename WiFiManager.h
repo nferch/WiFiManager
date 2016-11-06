@@ -14,7 +14,17 @@
 #define WiFiManager_h
 
 #include <ESP8266WiFi.h>
+
+#ifdef WIFI_MANAGER_USE_ASYNC_WEB_SERVER
+#include <ESPAsyncWebServer.h>
+typedef AsyncWebServer WifiManagerWebServerType;
+typedef AsyncWebServerRequest WifiManagerWebServerRequestType;
+#else
 #include <ESP8266WebServer.h>
+typedef ESP8266WebServer WifiManagerWebServerType;
+typedef ESP8266WebServer WifiManagerWebServerRequestType;
+#endif
+
 #include <DNSServer.h>
 #include <memory>
 
@@ -120,7 +130,7 @@ class WiFiManager
 
   private:
     std::unique_ptr<DNSServer>        dnsServer;
-    std::unique_ptr<ESP8266WebServer> server;
+    std::unique_ptr<WifiManagerWebServerType> server;
 
     //const int     WM_DONE                 = 0;
     //const int     WM_WAIT                 = 10;
@@ -160,15 +170,15 @@ class WiFiManager
     int           connectWifi(String ssid, String pass);
     uint8_t       waitForConnectResult();
 
-    void          handleRoot();
-    void          handleWifi(boolean scan);
-    void          handleWifiSave();
-    void          handleInfo();
-    void          handleReset();
-    void          handleNotFound();
-    void          handle204();
-    boolean       captivePortal();
-    boolean       configPortalHasTimeout();
+    void          handleRoot(WifiManagerWebServerRequestType *request);
+    void          handleWifi(WifiManagerWebServerRequestType *request, boolean scan);
+    void          handleWifiSave(WifiManagerWebServerRequestType *request);
+    void          handleInfo(WifiManagerWebServerRequestType *request);
+    void          handleReset(WifiManagerWebServerRequestType *request);
+    void          handleNotFound(WifiManagerWebServerRequestType *request);
+    void          handle204(WifiManagerWebServerRequestType *request);
+    boolean       captivePortal(WifiManagerWebServerRequestType *request);
+    boolean       configPortalHasTimeout(WifiManagerWebServerRequestType *request);
 
     // DNS server
     const byte    DNS_PORT = 53;
