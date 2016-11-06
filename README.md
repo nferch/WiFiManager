@@ -1,4 +1,18 @@
 ## Current development going on here :arrow_right: [Development Branch](https://github.com/tzapu/WiFiManager/tree/development)
+# Note from btomer
+
+This is a fork of [tzapu's](https://github.com/tzapu) [WiFiManager](https://github.com/tzapu/WiFiManager) that supports [me-no-dev's](https://github.com/me-no-dev) [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer).
+This is needed because ESP8266WebServer (which is used by the original version of WiFiManager) and ESPAsyncWebServer don't compile together, so you couldn't use them both in your project.
+
+To use this fork all you have to do is replace the original WiFiManager.h and WiFiManager.cpp files (under `<Arduino_IDE_dir>/libraries/WiFiManager/`) with the matching files in this repository, and add the following define before including WiFiManager.h:
+```cpp
+// NOTE: This requires btomer's fork of the WiFiManager library (https://github.com/btomer/WiFiManager)
+#define WIFI_MANAGER_USE_ASYNC_WEB_SERVER
+#include <WiFiManager.h>
+```
+If you do not define `WIFI_MANAGER_USE_ASYNC_WEB_SERVER` then WiFiManager will work with ESP8266WebServer.
+
+__Original WiFiManager documentation:__
 
 # WiFiManager
 ESP8266 WiFi Connection manager with fallback web configuration portal
