@@ -462,18 +462,18 @@ void WiFiManager::handleRoot(WifiManagerWebServerRequestType *request) {
     return;
   }
 
-  String page = FPSTR(HTTP_HEADER);
+  String page = FPSTR(WIFI_MANAGER_HTTP_HEADER);
   page.replace("{v}", "Options");
   page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
   page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
-  page += FPSTR(HTTP_HEADER_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_HEADER_END);
   page += String(F("<h1>"));
   page += _apName;
   page += String(F("</h1>"));
   page += String(F("<h3>WiFiManager</h3>"));
-  page += FPSTR(HTTP_PORTAL_OPTIONS);
-  page += FPSTR(HTTP_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_PORTAL_OPTIONS);
+  page += FPSTR(WIFI_MANAGER_HTTP_END);
 
   server->sendHeader("Content-Length", String(page.length()));
   server->send(200, "text/html", page);
@@ -484,12 +484,12 @@ void WiFiManager::handleRoot(WifiManagerWebServerRequestType *request) {
 /** Wifi config page handler */
 void WiFiManager::handleWifi(WifiManagerWebServerRequestType *request, boolean scan) {
 
-  String page = FPSTR(HTTP_HEADER);
+  String page = FPSTR(WIFI_MANAGER_HTTP_HEADER);
   page.replace("{v}", "Config ESP");
   page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
   page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
-  page += FPSTR(HTTP_HEADER_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_HEADER_END);
 
   if (scan) {
     int n = WiFi.scanNetworks();
@@ -566,7 +566,7 @@ void WiFiManager::handleWifi(WifiManagerWebServerRequestType *request, boolean s
     }
   }
 
-  page += FPSTR(HTTP_FORM_START);
+  page += FPSTR(WIFI_MANAGER_HTTP_FORM_START);
   char parLength[5];
   // add the extra parameters to the form
   for (int i = 0; i < _paramsCount; i++) {
@@ -677,14 +677,14 @@ void WiFiManager::handleWifiSave(WifiManagerWebServerRequestType *request) {
     optionalIPFromString(&_sta_static_sn, sn.c_str());
   }
 
-  String page = FPSTR(HTTP_HEADER);
+  String page = FPSTR(WIFI_MANAGER_HTTP_HEADER);
   page.replace("{v}", "Credentials Saved");
   page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
   page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
-  page += FPSTR(HTTP_HEADER_END);
-  page += FPSTR(HTTP_SAVED);
-  page += FPSTR(HTTP_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_HEADER_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_SAVED);
+  page += FPSTR(WIFI_MANAGER_HTTP_END);
 
   server->sendHeader("Content-Length", String(page.length()));
   server->send(200, "text/html", page);
@@ -698,12 +698,12 @@ void WiFiManager::handleWifiSave(WifiManagerWebServerRequestType *request) {
 void WiFiManager::handleInfo(WifiManagerWebServerRequestType *request) {
   DEBUG_WM(F("Info"));
 
-  String page = FPSTR(HTTP_HEADER);
+  String page = FPSTR(WIFI_MANAGER_HTTP_HEADER);
   page.replace("{v}", "Info");
   page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
   page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
-  page += FPSTR(HTTP_HEADER_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_HEADER_END);
   page += F("<dl>");
   page += F("<dt>Chip ID</dt><dd>");
   page += ESP.getChipId();
@@ -739,14 +739,14 @@ void WiFiManager::handleInfo(WifiManagerWebServerRequestType *request) {
 void WiFiManager::handleReset(WifiManagerWebServerRequestType *request) {
   DEBUG_WM(F("Reset"));
 
-  String page = FPSTR(HTTP_HEADER);
+  String page = FPSTR(WIFI_MANAGER_HTTP_HEADER);
   page.replace("{v}", "Info");
   page += FPSTR(WIFI_MANAGER_HTTP_SCRIPT);
   page += FPSTR(WIFI_MANAGER_HTTP_STYLE);
   page += _customHeadElement;
-  page += FPSTR(HTTP_HEADER_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_HEADER_END);
   page += F("Module will reset in a few seconds.");
-  page += FPSTR(HTTP_END);
+  page += FPSTR(WIFI_MANAGER_HTTP_END);
 
   server->sendHeader("Content-Length", String(page.length()));
   server->send(200, "text/html", page);
